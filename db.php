@@ -1,8 +1,11 @@
 <?php
 /**
  * Konfigurasi Koneksi Database MySQL
- * Mendukung otomatis mode Lokal (XAMPP) & Hosting Online (Hostinger pssikabbogor.my.id)
+ * Mendukung otomatis file .env, mode Lokal (XAMPP), & Hosting Online (Hostinger pssikabbogor.my.id)
  */
+
+// Muat helper & parser environment (.env)
+require_once __DIR__ . '/env_loader.php';
 
 // Nonaktifkan mode exception strict bawaan PHP 8.1+ agar tidak memicu HTTP 500 kosong
 if (function_exists('mysqli_report')) {
@@ -23,7 +26,21 @@ $is_local = (
 // Daftar konfigurasi database yang akan dicoba secara berurutan
 $db_candidates = [];
 
-// Opsi 1: File custom override jika ada (db_custom.php)
+// PRIORITAS 1: Konfigurasi dari file .env (jika file .env ada dan diisi)
+$envHost = env('DB_HOST');
+$envName = env('DB_NAME');
+if (!empty($envHost) && !empty($envName)) {
+    $db_candidates[] = [
+        'label' => 'Environment (.env)',
+        'host'  => $envHost,
+        'user'  => env('DB_USER', 'root'),
+        'pass'  => env('DB_PASS', ''),
+        'name'  => $envName,
+        'port'  => (int) env('DB_PORT', 3306)
+    ];
+}
+
+// PRIORITAS 2: File custom override jika ada (db_custom.php)
 if (file_exists(__DIR__ . '/db_custom.php')) {
     $custom = include __DIR__ . '/db_custom.php';
     if (is_array($custom)) {
@@ -31,6 +48,7 @@ if (file_exists(__DIR__ . '/db_custom.php')) {
     }
 }
 
+// PRIORITAS 3: Deteksi Berdasarkan Lingkungan (Lokal vs Hosting)
 if ($is_local) {
     // Mode Lokal (XAMPP)
     $db_candidates[] = [
@@ -38,22 +56,24 @@ if ($is_local) {
         'host'  => 'localhost',
         'user'  => 'root',
         'pass'  => '',
-        'name'  => 'absenqr'
+        'name'  => 'absenqr',
+        'port'  => 3306
     ];
     $db_candidates[] = [
         'label' => 'XAMPP 127.0.0.1',
         'host'  => '127.0.0.1',
         'user'  => 'root',
         'pass'  => '',
-        'name'  => 'absenqr'
+        'name'  => 'absenqr',
+        'port'  => 3306
     ];
-    // Cadangan jika lokal menggunakan database hosting
     $db_candidates[] = [
         'label' => 'Hostinger Production',
         'host'  => 'localhost',
         'user'  => 'u423457723_absenqr',
         'pass'  => 'Rayhanaja123@',
-        'name'  => 'u423457723_absenqr'
+        'name'  => 'u423457723_absenqr',
+        'port'  => 3306
     ];
 } else {
     // Mode Hosting Online (Hostinger pssikabbogor.my.id)
@@ -62,22 +82,24 @@ if ($is_local) {
         'host'  => 'localhost',
         'user'  => 'u423457723_absenqr',
         'pass'  => 'Rayhanaja123@',
-        'name'  => 'u423457723_absenqr'
+        'name'  => 'u423457723_absenqr',
+        'port'  => 3306
     ];
     $db_candidates[] = [
         'label' => 'Hostinger Production (127.0.0.1)',
         'host'  => '127.0.0.1',
         'user'  => 'u423457723_absenqr',
         'pass'  => 'Rayhanaja123@',
-        'name'  => 'u423457723_absenqr'
+        'name'  => 'u423457723_absenqr',
+        'port'  => 3306
     ];
-    // Cadangan
     $db_candidates[] = [
         'label' => 'Localhost Fallback',
         'host'  => 'localhost',
         'user'  => 'root',
         'pass'  => '',
-        'name'  => 'absenqr'
+        'name'  => 'absenqr',
+        'port'  => 3306
     ];
 }
 
@@ -86,7 +108,8 @@ $connection_errors = [];
 
 foreach ($db_candidates as $cfg) {
     try {
-        $conn = @new mysqli($cfg['host'], $cfg['user'], $cfg['pass'], $cfg['name']);
+        $port = isset($cfg['port']) ? (int)$cfg['port'] : 3306;
+        $conn = @new mysqli($cfg['host'], $cfg['user'], $cfg['pass'], $cfg['name'], $port);
         if (!$conn->connect_error) {
             $koneksi = $conn;
             $koneksi->set_charset("utf8mb4");
@@ -151,12 +174,16 @@ if (!$koneksi || $koneksi->connect_error) {
             </div>
 
             <div class="mt-4">
-              <h6 class="font-weight-bold text-dark"><i class="fas fa-tools mr-1"></i> Langkah Perbaikan di Hostinger (hPanel):</h6>
+              <h6 class="font-weight-bold text-dark"><i class="fas fa-tools mr-1"></i> Cara Memperbaiki dengan File .env:</h6>
               <ol class="text-muted pl-3" style="font-size: 0.95rem; line-height: 1.6;">
-                <li>Buka <strong>hPanel Hostinger</strong> &rarr; menu <strong>Databases</strong> &rarr; <strong>MySQL Databases</strong>.</li>
-                <li>Pastikan Database <code>u423457723_absenqr</code> dan User <code>u423457723_absenqr</code> sudah dibuat.</li>
-                <li>Jika lupa password, klik tombol <strong>titik tiga (&hellip;)</strong> di sebelah user &rarr; pilih <strong>Change Password</strong> &rarr; set password yang sesuai.</li>
-                <li>Pastikan user memiliki hak akses penuh (<strong>All Privileges</strong>) ke database tersebut.</li>
+                <li>Buka File Manager di hosting atau lokal, salin file <code>.env.example</code> menjadi <code>.env</code>.</li>
+                <li>Isi kredensial database di dalam <code>.env</code>:
+                  <pre class="bg-light p-2 border mt-1 mb-2" style="font-size: 0.85rem;">DB_HOST=localhost
+DB_NAME=u423457723_absenqr
+DB_USER=u423457723_absenqr
+DB_PASS=PasswordDatabaseAnda</pre>
+                </li>
+                <li>Pastikan user database sudah memiliki izin penuh (<strong>All Privileges</strong>) di hPanel Hostinger.</li>
                 <li>Pastikan tabel sudah di-import dari <code>absenqr.sql</code> melalui menu <strong>phpMyAdmin</strong>.</li>
               </ol>
             </div>

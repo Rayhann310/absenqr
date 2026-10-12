@@ -1,15 +1,17 @@
 <?php
 require '../vendor/autoload.php'; // pastikan phpqrcode atau endroid/qr-code di-install via composer
+require_once __DIR__ . '/../env_loader.php';
 
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
 
-// Membuat token dinamis berdasarkan waktu (misalnya per 30 detik)
+// Membuat token dinamis berdasarkan waktu
 $timestamp = time();
-$interval = floor($timestamp / 30); // QR berubah setiap 30 detik
-$secret = 'absen-qr-secret'; // bisa diganti dengan secret key atau ID ruangan misalnya
+$refreshSeconds = (int) env('QR_REFRESH_INTERVAL', 30);
+$interval = floor($timestamp / ($refreshSeconds > 0 ? $refreshSeconds : 30));
+$secret = env('QR_SECRET', 'absen-qr-secret');
 $token = hash('sha256', $secret . $interval);
 
 // URL atau data yang akan di-encode ke QR (otomatis mendeteksi domain hosting pssikabbogor.my.id maupun localhost)

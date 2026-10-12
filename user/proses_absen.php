@@ -31,11 +31,13 @@ $hari = [
 ][date('l')];
 
 // Validasi token QR
-$secret = 'absen-qr-secret';
+$secret = env('QR_SECRET', 'absen-qr-secret');
 $token = $_POST['token'] ?? '';
+$refreshSeconds = (int) env('QR_REFRESH_INTERVAL', 30);
+if ($refreshSeconds <= 0) $refreshSeconds = 30;
 
 $valid = false;
-$currentInterval = floor(time() / 30);
+$currentInterval = floor(time() / $refreshSeconds);
 for ($i = -1; $i <= 1; $i++) {
     if (hash('sha256', $secret . ($currentInterval + $i)) === $token) {
         $valid = true;

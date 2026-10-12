@@ -3,3 +3,6 @@
 .vscode/
 .idea/
 n.php
+.env
+.env.backup
+
