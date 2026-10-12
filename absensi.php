@@ -1,14 +1,20 @@
 <?php
-$allowed_ips = ['10.175.151.187'];
-$client_ip = $_SERVER['REMOTE_ADDR'];
+require_once __DIR__ . '/config_ip.php';
+include_once __DIR__ . '/db.php';
 
-if (!in_array($client_ip, $allowed_ips)) {
-  http_response_code(403);
-  die('Akses hanya diizinkan dari jaringan kantor.<br>IP Anda saat ini: <strong>' . $client_ip . '</strong>');
-}
+$client_ip = getClientIP();
+$isAllowed = isClientAllowed();
+
+// Cek status QR dari qr_status.json
+$statusFile = __DIR__ . '/qr_status.json';
+$statusData = file_exists($statusFile) ? json_decode(file_get_contents($statusFile), true) : ['status_absen' => 'aktif'];
+$qrAktif = isset($statusData['status_absen']) ? ($statusData['status_absen'] === 'aktif') : true;
+
+// Ambil refresh_time dari setting database
+$settingQuery = mysqli_query($koneksi, "SELECT refresh_time FROM setting WHERE id = 1");
+$settingRow = $settingQuery ? mysqli_fetch_assoc($settingQuery) : null;
+$refreshSeconds = !empty($settingRow['refresh_time']) ? (int)$settingRow['refresh_time'] : 30;
 ?>
-
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -18,7 +24,7 @@ if (!in_array($client_ip, $allowed_ips)) {
   <!-- Bootstrap 4 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
   <!-- Font Awesome -->
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <style>
     body {
       background: linear-gradient(to right, #1d2b64, #f8cdda);
@@ -33,11 +39,11 @@ if (!in_array($client_ip, $allowed_ips)) {
 
     .container-qr {
       margin-top: 50px;
-      padding: 20px;
+      padding: 25px;
       background: #fff;
       border-radius: 15px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-      max-width: 400px;
+      max-width: 420px;
       width: 90%;
       text-align: center;
       animation: fadeIn 0.8s ease;
@@ -115,13 +121,21 @@ if (!in_array($client_ip, $allowed_ips)) {
   <i class="fas fa-user-check fa-3x text-primary mb-3"></i>
   <div class="title">QR Dinamis Absensi</div>
 
-  <?php if ($qrAktif): ?>
+  <?php if (!$isAllowed): ?>
+    <div class="alert alert-danger mt-4 text-left">
+      <h5><i class="fas fa-shield-alt"></i> Akses Dibatasi</h5>
+      <p class="mb-2">Halaman QR Absensi hanya diizinkan diakses dari jaringan Wi-Fi kantor.</p>
+      <hr>
+      <small class="text-muted d-block">IP Anda saat ini: <strong><?= htmlspecialchars($client_ip) ?></strong></small>
+      <small class="text-muted">Hubungi Admin jika IP kantor ini perlu didaftarkan di Pengaturan Jaringan.</small>
+    </div>
+  <?php elseif ($qrAktif): ?>
     <span class="status-badge bg-info" id="refreshStatus">QR Aktif</span>
     <img id="qr-image" src="admin/qr_image.php" alt="QR Dinamis" class="qr-img">
     <div class="countdown-bar">
       <div class="progress-inner" id="progressBar"></div>
     </div>
-    <p id="countdownText">QR akan diperbarui dalam <strong><span id="countdown">10</span></strong> detik</p>
+    <p id="countdownText">QR akan diperbarui dalam <strong><span id="countdown"><?= $refreshSeconds ?></span></strong> detik</p>
     <button class="btn btn-outline-dark fullscreen-btn" onclick="toggleFullScreen()">
       <i class="fas fa-expand"></i> Layar Penuh
     </button>
@@ -133,23 +147,27 @@ if (!in_array($client_ip, $allowed_ips)) {
   <?php endif; ?>
 </div>
 
-
 <!-- Informasi Marquee -->
 <div class="info-marquee">
   <marquee behavior="scroll" direction="left" scrollamount="4">
     <?php
-      include 'db.php';
       $query = mysqli_query($koneksi, "SELECT isi_info FROM informasi ORDER BY id DESC");
-      while ($row = mysqli_fetch_assoc($query)) {
-        echo "📢 " . htmlspecialchars($row['isi_info']) . " &nbsp;&nbsp;&nbsp;";
+      if ($query && mysqli_num_rows($query) > 0) {
+        while ($row = mysqli_fetch_assoc($query)) {
+          echo "📢 " . htmlspecialchars($row['isi_info']) . " &nbsp;&nbsp;&nbsp;";
+        }
+      } else {
+        echo "📢 Selamat datang di sistem absensi QR dinamis!";
       }
     ?>
   </marquee>
 </div>
 
 <!-- JS -->
+<?php if ($isAllowed && $qrAktif): ?>
 <script>
-  let countdown = 30;
+  const totalSeconds = <?= $refreshSeconds ?>;
+  let countdown = totalSeconds;
   const countdownEl = document.getElementById('countdown');
   const qrImage = document.getElementById('qr-image');
   const statusEl = document.getElementById('refreshStatus');
@@ -169,11 +187,11 @@ if (!in_array($client_ip, $allowed_ips)) {
 
   setInterval(() => {
     countdown--;
-    countdownEl.textContent = countdown;
-    progressBar.style.width = (countdown * 100 / 10) + "%";
+    if (countdownEl) countdownEl.textContent = countdown;
+    if (progressBar) progressBar.style.width = (countdown * 100 / totalSeconds) + "%";
     if (countdown <= 0) {
       refreshQR();
-      countdown = 10;
+      countdown = totalSeconds;
     }
   }, 1000);
 
@@ -187,6 +205,7 @@ if (!in_array($client_ip, $allowed_ips)) {
     }
   }
 </script>
+<?php endif; ?>
 
 </body>
 </html>

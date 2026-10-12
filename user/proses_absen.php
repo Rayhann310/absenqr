@@ -11,6 +11,13 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 include '../db.php'; // Koneksi database
+require_once __DIR__ . '/../config_ip.php';
+
+// Validasi Jaringan Kantor jika pembatasan aktif
+if (!isClientAllowed()) {
+    $client_ip = getClientIP();
+    exit("Absensi gagal: Anda harus terhubung ke jaringan Wi-Fi kantor untuk melakukan absensi.<br>IP Anda: <strong>$client_ip</strong>");
+}
 
 date_default_timezone_set('Asia/Jakarta');
 
