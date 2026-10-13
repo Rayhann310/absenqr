@@ -18,8 +18,8 @@ $token = hash('sha256', $secret . $interval);
 // Dapatkan Base URL yang valid dan dapat diakses dari smartphone (bukan localhost)
 $baseUrl = getQRBaseURL();
 
-// Target link scan QR
-$data = rtrim($baseUrl, '/') . '/user/scan_qr.php?token=' . $token;
+// Target link scan QR (langsung ke halaman absensi tanpa perlu login)
+$data = rtrim($baseUrl, '/') . '/scan.php?token=' . $token;
 
 // Header anti-cache agar browser tidak menyimpan QR lama yang mengarah ke localhost
 header('Content-Type: image/png');

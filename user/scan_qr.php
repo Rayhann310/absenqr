@@ -7,8 +7,11 @@ if (!empty($_GET['token'])) {
 }
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
-    $redirectUrl = "../index.php" . (!empty($_GET['token']) ? "?token=" . urlencode($_GET['token']) : "");
-    header("Location: " . $redirectUrl);
+    if (!empty($_GET['token'])) {
+        header("Location: ../scan.php?token=" . urlencode($_GET['token']));
+    } else {
+        header("Location: ../index.php");
+    }
     exit;
 }
 

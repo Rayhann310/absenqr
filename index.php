@@ -3,7 +3,8 @@ session_start();
 include 'db.php';
 
 if (!empty($_GET['token'])) {
-  $_SESSION['pending_qr_token'] = trim($_GET['token']);
+  header("Location: scan.php?token=" . urlencode($_GET['token']));
+  exit;
 }
 
 // Jika user sudah login, langsung teruskan
