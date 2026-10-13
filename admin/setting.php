@@ -46,21 +46,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_query($koneksi, $sql);
 
-    // Simpan Pengaturan Jaringan Kantor (IP Whitelist)
+    // Simpan Pengaturan Jaringan Kantor (IP Whitelist) & URL Target QR
     $filter_ip = isset($_POST['filter_ip']) ? 1 : 0;
     $allowed_ips = $_POST['allowed_ips'] ?? '';
-    saveNetworkSetting($filter_ip, $allowed_ips);
+    $qr_base_url = trim($_POST['qr_base_url'] ?? '');
+    saveNetworkSetting($filter_ip, $allowed_ips, $qr_base_url);
 
-    $pesan_sukses = "Pengaturan sistem dan keamanan jaringan berhasil disimpan.";
+    $pesan_sukses = "Pengaturan sistem, jaringan, dan URL QR Code berhasil disimpan.";
 }
 
 // Ambil data setting aplikasi
 $setting = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM setting WHERE id = 1"));
 
-// Ambil data setting jaringan
+// Ambil data setting jaringan & QR
 $networkSetting = getNetworkSetting();
 $currentClientIp = getClientIP();
 $allowedIpsText = implode("\n", (array)($networkSetting['allowed_ips'] ?? []));
+$activeQRUrl = getQRBaseURL();
+$primaryLocalIP = getPrimaryLocalIP();
+$scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+$baseDir = rtrim(dirname($scriptDir), '/\\');
+if ($baseDir === '/' || $baseDir === '\\' || $baseDir === '.') {
+    $baseDir = '';
+}
+$wifiOptionUrl = !empty($primaryLocalIP) ? "http://" . $primaryLocalIP . $baseDir : "";
 ?>
 
 <div class="content-wrapper">
@@ -118,6 +127,49 @@ $allowedIpsText = implode("\n", (array)($networkSetting['allowed_ips'] ?? []));
               <textarea name="informasi" rows="3" class="form-control"><?= htmlspecialchars($setting['informasi'] ?? '') ?></textarea>
             </div>
 
+          </div>
+        </div>
+
+        <!-- Card Pengaturan Target URL QR Code -->
+        <div class="card card-info card-outline">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-qrcode mr-2"></i>Pengaturan Target URL QR Code Absensi</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <i class="fas fa-link mr-1"></i> Target URL QR saat ini:
+              <strong class="badge badge-light p-2 font-weight-bold" style="font-size: 0.95rem;"><?= htmlspecialchars($activeQRUrl) ?></strong>
+            </div>
+
+            <p class="text-muted" style="font-size: 0.9rem;">
+              Ketika karyawan men-scan QR code di layar absensi, HP mereka akan diarahkan ke alamat ini. 
+              <strong>Jangan gunakan localhost</strong> karena smartphone tidak dapat membuka localhost dari laptop Anda.
+            </p>
+
+            <div class="form-group">
+              <label for="qr_base_url">URL / Domain Server Absensi (Base URL):</label>
+              <input type="text" name="qr_base_url" id="qr_base_url" class="form-control"
+                     value="<?= htmlspecialchars($networkSetting['qr_base_url'] ?? '') ?>"
+                     placeholder="Kosongkan untuk otomatis deteksi (Rekomendasi)">
+              <small class="form-text text-muted mb-2">
+                Biarkan kosong agar sistem mendeteksi secara otomatis (menggunakan IP Wi-Fi saat di laptop, atau domain online saat di hosting).
+              </small>
+
+              <div class="d-flex flex-wrap align-items-center" style="gap: 6px;">
+                <span class="text-muted font-weight-bold mr-1" style="font-size: 0.85rem;">Pilihan Cepat:</span>
+                <?php if (!empty($wifiOptionUrl)): ?>
+                  <button type="button" class="btn btn-xs btn-outline-primary" onclick="setQRUrl('<?= htmlspecialchars($wifiOptionUrl) ?>')">
+                    <i class="fas fa-wifi mr-1"></i> Gunakan IP Wi-Fi Laptop (<?= htmlspecialchars($primaryLocalIP) ?>)
+                  </button>
+                <?php endif; ?>
+                <button type="button" class="btn btn-xs btn-outline-success" onclick="setQRUrl('https://pssikabbogor.my.id')">
+                  <i class="fas fa-globe mr-1"></i> Gunakan Domain (pssikabbogor.my.id)
+                </button>
+                <button type="button" class="btn btn-xs btn-outline-secondary" onclick="setQRUrl('')">
+                  <i class="fas fa-magic mr-1"></i> Deteksi Otomatis (Default)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -195,6 +247,10 @@ $allowedIpsText = implode("\n", (array)($networkSetting['allowed_ips'] ?? []));
 </div>
 
 <script>
+function setQRUrl(url) {
+  document.getElementById('qr_base_url').value = url;
+}
+
 function addCurrentIP(ip) {
   const textarea = document.getElementById('allowed_ips');
   const currentVal = textarea.value.trim();

@@ -2,6 +2,26 @@
 session_start();
 include 'db.php';
 
+if (!empty($_GET['token'])) {
+  $_SESSION['pending_qr_token'] = trim($_GET['token']);
+}
+
+// Jika user sudah login, langsung teruskan
+if (isset($_SESSION['role'])) {
+  if ($_SESSION['role'] === 'admin') {
+    header("Location: admin/index.php");
+    exit;
+  } else {
+    $pendingToken = $_GET['token'] ?? ($_SESSION['pending_qr_token'] ?? '');
+    if (!empty($pendingToken)) {
+      header("Location: user/scan_qr.php?token=" . urlencode($pendingToken));
+    } else {
+      header("Location: user/index.php");
+    }
+    exit;
+  }
+}
+
 if (isset($_POST['login'])) {
   $username = mysqli_real_escape_string($koneksi, $_POST['username']);
   $password = $_POST['password'];
@@ -21,7 +41,12 @@ $_SESSION['user_id'] = $user['id']; // Betul, gunakan $user
       if ($user['role'] == 'admin') {
         header("Location: admin/index.php");
       } else {
-        header("Location: user/index.php");
+        $pendingToken = $_GET['token'] ?? ($_SESSION['pending_qr_token'] ?? '');
+        if (!empty($pendingToken)) {
+          header("Location: user/scan_qr.php?token=" . urlencode($pendingToken));
+        } else {
+          header("Location: user/index.php");
+        }
       }
       exit;
     } else {

@@ -1,9 +1,19 @@
 <?php
 session_start();
+
+// Simpan token sementara jika discan langsung dari kamera smartphone
+if (!empty($_GET['token'])) {
+    $_SESSION['pending_qr_token'] = trim($_GET['token']);
+}
+
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
-    header("Location: ../index.php");
+    $redirectUrl = "../index.php" . (!empty($_GET['token']) ? "?token=" . urlencode($_GET['token']) : "");
+    header("Location: " . $redirectUrl);
     exit;
 }
+
+$directToken = $_GET['token'] ?? ($_SESSION['pending_qr_token'] ?? '');
+unset($_SESSION['pending_qr_token']);
 
 include '../tmp/header.php';
 include '../tmp/navbar.php';
@@ -125,6 +135,40 @@ include '../tmp/sidebar.php';
 
 <script>
 const html5QrCode = new Html5Qrcode("reader");
+const directToken = <?= json_encode($directToken) ?>;
+
+function prosesAbsensiToken(token) {
+  const loadingEl = document.getElementById("loading");
+  if (loadingEl) {
+    loadingEl.style.display = "block";
+    loadingEl.innerHTML = `
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2 text-muted">Memproses absensi Anda...</p>
+    `;
+  }
+  const readerEl = document.getElementById("reader");
+  if (readerEl) readerEl.style.display = "none";
+
+  fetch("proses_absen.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "token=" + encodeURIComponent(token)
+  })
+  .then(res => res.text())
+  .then(response => {
+    if (loadingEl) loadingEl.style.display = "none";
+    Swal.fire({
+      title: 'Status Absensi',
+      html: response,
+      icon: 'success',
+      confirmButtonText: 'OK'
+    }).then(() => window.location.href = 'riwayat.php');
+  })
+  .catch(() => {
+    if (loadingEl) loadingEl.style.display = "none";
+    Swal.fire('Gagal', 'Terjadi kesalahan saat mengirim data.', 'error');
+  });
+}
 
 function onScanSuccess(decodedText, decodedResult) {
   html5QrCode.stop().then(() => {
@@ -134,82 +178,80 @@ function onScanSuccess(decodedText, decodedResult) {
       </div>
     `;
 
+    let token = '';
     try {
       const url = new URL(decodedText);
-      const token = url.searchParams.get("token");
-
-      if (!token) {
-        Swal.fire('QR Tidak Valid', 'Token tidak ditemukan.', 'error');
-        return;
-      }
-
-      fetch("proses_absen.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "token=" + encodeURIComponent(token)
-      })
-      .then(res => res.text())
-      .then(response => {
-        Swal.fire({
-          title: 'Status Absensi',
-          html: response,
-          icon: 'success',
-          confirmButtonText: 'OK'
-        }).then(() => window.location.href = 'riwayat.php');
-      })
-      .catch(() => {
-        Swal.fire('Gagal', 'Terjadi kesalahan saat mengirim data.', 'error');
-      });
-
+      token = url.searchParams.get("token") || '';
     } catch (e) {
-      Swal.fire('QR Tidak Valid', 'Format QR tidak sesuai.', 'error');
+      // Jika decodedText bukan URL lengkap, cari parameter token dengan regex
+      const match = decodedText.match(/[?&]token=([^&]+)/);
+      if (match) {
+        token = match[1];
+      } else if (/^[a-f0-9]{64}$/i.test(decodedText.trim())) {
+        token = decodedText.trim();
+      }
     }
+
+    if (!token) {
+      Swal.fire('QR Tidak Valid', 'Token QR tidak ditemukan atau format salah.', 'error');
+      return;
+    }
+
+    prosesAbsensiToken(token);
   });
 }
 
-// Minta izin kamera
-navigator.mediaDevices.getUserMedia({ video: true })
-.then(stream => {
-  stream.getTracks().forEach(track => track.stop());
+function initCamera() {
+  navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => {
+    stream.getTracks().forEach(track => track.stop());
 
-  Html5Qrcode.getCameras().then(devices => {
-    document.getElementById("loading").style.display = "none";
-    document.getElementById("reader").style.display = "block";
+    Html5Qrcode.getCameras().then(devices => {
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("reader").style.display = "block";
 
-    if (devices && devices.length) {
-      const backCam = devices.find(d =>
-        d.label.toLowerCase().includes("back") ||
-        d.label.toLowerCase().includes("environment")
-      ) || devices[0];
+      if (devices && devices.length) {
+        const backCam = devices.find(d =>
+          d.label.toLowerCase().includes("back") ||
+          d.label.toLowerCase().includes("environment")
+        ) || devices[0];
 
-      html5QrCode.start(
-        { deviceId: { exact: backCam.id } },
-        { fps: 10, qrbox: 250 },
-        onScanSuccess
-      ).catch(err => {
-        console.warn("Fallback ke facingMode:", err);
         html5QrCode.start(
-          { facingMode: "environment" },
+          { deviceId: { exact: backCam.id } },
           { fps: 10, qrbox: 250 },
           onScanSuccess
-        ).catch(error => {
-          Swal.fire('Gagal', 'Tidak bisa mengakses kamera.', 'error');
+        ).catch(err => {
+          console.warn("Fallback ke facingMode:", err);
+          html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+          ).catch(error => {
+            Swal.fire('Gagal', 'Tidak bisa mengakses kamera.', 'error');
+          });
         });
-      });
-    } else {
-      Swal.fire('Tidak Ada Kamera', 'Perangkat Anda tidak memiliki kamera.', 'error');
-    }
+      } else {
+        Swal.fire('Tidak Ada Kamera', 'Perangkat Anda tidak memiliki kamera.', 'error');
+      }
+    }).catch(err => {
+      Swal.fire('Gagal', 'Tidak bisa memuat kamera.', 'error');
+    });
   }).catch(err => {
-    Swal.fire('Gagal', 'Tidak bisa memuat kamera.', 'error');
+    Swal.fire({
+      icon: 'error',
+      title: 'Izin Kamera Ditolak',
+      text: 'Silakan izinkan akses kamera di browser Anda agar dapat melakukan scan QR.',
+      footer: '<a href="#">Lihat cara mengaktifkan kamera</a>'
+    });
   });
-}).catch(err => {
-  Swal.fire({
-    icon: 'error',
-    title: 'Izin Kamera Ditolak',
-    text: 'Silakan izinkan akses kamera di browser Anda agar dapat melakukan scan QR.',
-    footer: '<a href="#">Lihat cara mengaktifkan kamera</a>'
-  });
-});
+}
+
+// Jika ada token dari scan link langsung (kamera HP), langsung proses!
+if (directToken) {
+  prosesAbsensiToken(directToken);
+} else {
+  initCamera();
+}
 
 // Fungsi submit izin/cuti
 function handleForm(formId, modalId) {

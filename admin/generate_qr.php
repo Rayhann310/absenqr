@@ -10,6 +10,9 @@ $statusFile = '../qr_status.json';
 $statusData = file_exists($statusFile) ? json_decode(file_get_contents($statusFile), true) : ['status_absen' => 'nonaktif'];
 $isAktif = isset($statusData['status_absen']) && $statusData['status_absen'] === 'aktif';
 
+require_once __DIR__ . '/../config_ip.php';
+$qrBaseUrl = getQRBaseURL();
+
 include '../tmp/header.php';
 include '../tmp/navbar.php';
 include '../tmp/sidebar.php';
@@ -37,9 +40,12 @@ include '../tmp/sidebar.php';
         <div class="card-body text-center">
           <?php if ($isAktif): ?>
             <div id="qr-container">
-              <img src="qr_image.php" alt="QR Dinamis" id="qr-image" style="max-width: 300px;">
+              <img src="qr_image.php?t=<?= time() ?>" alt="QR Dinamis" id="qr-image" style="max-width: 300px;">
             </div>
-            <p class="mt-3 text-muted">QR akan diperbarui setiap <strong>30 detik</strong> secara otomatis.</p>
+            <p class="mt-2 mb-1 text-muted">QR akan diperbarui setiap <strong>30 detik</strong> secara otomatis.</p>
+            <div class="mb-2">
+              <small class="text-muted"><i class="fas fa-link mr-1"></i> Target Scan: <span class="badge badge-light border text-dark"><?= htmlspecialchars($qrBaseUrl) ?></span></small>
+            </div>
           <?php else: ?>
             <div class="alert alert-warning mt-4">
               <h5>QR Dinamis sedang dinonaktifkan.</h5>

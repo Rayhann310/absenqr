@@ -131,11 +131,15 @@ $refreshSeconds = !empty($settingRow['refresh_time']) ? (int)$settingRow['refres
     </div>
   <?php elseif ($qrAktif): ?>
     <span class="status-badge bg-info" id="refreshStatus">QR Aktif</span>
-    <img id="qr-image" src="admin/qr_image.php" alt="QR Dinamis" class="qr-img">
+    <img id="qr-image" src="admin/qr_image.php?t=<?= time() ?>" alt="QR Dinamis" class="qr-img">
     <div class="countdown-bar">
       <div class="progress-inner" id="progressBar"></div>
     </div>
-    <p id="countdownText">QR akan diperbarui dalam <strong><span id="countdown"><?= $refreshSeconds ?></span></strong> detik</p>
+    <p id="countdownText" class="mb-1">QR akan diperbarui dalam <strong><span id="countdown"><?= $refreshSeconds ?></span></strong> detik</p>
+    <?php $qrBaseUrl = getQRBaseURL(); ?>
+    <div class="mb-3">
+      <small class="text-muted"><i class="fas fa-link mr-1"></i> Target Scan: <span class="badge badge-light border text-dark"><?= htmlspecialchars($qrBaseUrl) ?></span></small>
+    </div>
     <button class="btn btn-outline-dark fullscreen-btn" onclick="toggleFullScreen()">
       <i class="fas fa-expand"></i> Layar Penuh
     </button>
